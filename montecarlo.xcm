@@ -1,0 +1,96 @@
+### Fit fake spectra with the some model and
+### output results to a file 
+
+### Parameters:
+set xs_echo_script 0     ;#  make XSPEC not echo the commands that are input
+set nf 1000              ;#  nf   = number of simulations
+#set Emin 0.3            ;#  Emin = minimum energy to fit
+#set Emax 10.0           ;#  Emax = maximum energy to fit
+#set model /localscratch/ahollett/montecarlo/noUFO.xcm
+
+### Initialize xspec
+query no
+method leven
+statistic cstat
+chatter 1
+
+### Create a file which will contain the results
+#set fileout [open real_result_TEST.dat w]
+#set fileout [open fake_result.dat w]
+
+### Read in energy file
+#set filein [open "energies.dat" r]
+set file_data [read $filein]
+close $filein
+set energylist [split $file_data "\n"]
+
+#cd /localscratch/agonzalez/${srcname}/301/
+cd $localdir/
+
+### Loop through all data
+for {set i 1} {$i <= $nf} {incr i} {
+
+    ### Read in data
+    #data fakespec${i}_rbn.fak
+
+    ### Ignore energies
+    #ign 1-2: **-$Emin
+    #ign 1-2: $Emax-**
+
+    #energies extend low 0.1
+    #energies extend high 100.0
+
+
+    if {$threadnum == 1} {
+        puts "\nIteration: $i"
+    }
+    ### Cycle through the line energies given above
+    @$model
+
+    energies extend low 0.1 
+    energies extend high 100.0
+
+    fit 100 0.1
+    freeze *
+
+    foreach line $energylist {
+        #puts "      Line energy: $line"
+        #@$model
+        #fit 100 0.01
+
+        ### Get the fit statistic and degrees of freedom
+        tclout stat
+        set base_cstat $xspec_tclout
+        tclout dof
+        set base_dof [lindex $xspec_tclout 0]
+
+        set NRG $line
+        ### Add in a zgauss component
+        addcom $compnum gauss & /*
+        newpar $parone, $NRG, -1, 0.3,0.3, 10,10
+        newpar $partwo, $linewidth, -1, 0.0,0.0, 1,1
+        newpar $parthree, 0.0, 0.01, -1e-4,-1e-4, 1e-4,1e-4
+
+        ### Fit this new model with added gaussian
+        fit 100 0.01
+
+        ### Get the fit statistic, degrees of freedom, and normalization of line
+        tclout stat
+        set mod_cstat $xspec_tclout
+        tclout dof
+        set mod_dof [lindex $xspec_tclout 0]
+        tclout param $parthree
+        set norm [lindex $xspec_tclout 0]
+
+        ### Put the chi-square and degrees of freedom of each fit into # file
+        puts $fileout "$i $NRG $norm $mod_cstat $mod_dof $base_cstat $base_dof"
+        delcom $compnum
+    }
+
+    ### Reset everything
+    data none
+    model none
+}
+
+close $fileout
+exit

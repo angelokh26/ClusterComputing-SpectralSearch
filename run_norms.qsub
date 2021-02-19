@@ -1,0 +1,11 @@
+#!/bin/tcsh
+#
+#$ -cwd
+#$ -j y
+#$ -o /share/scratch2/ahollett/_____/results/xterm_norms.out
+#$ -S /bin/tcsh
+#$ -pe openmp 46 
+setenv OMP_NUM_THREADS $NSLOTS
+setenv HEADAS /share/apps/heasoft-6.19/x86_64-unknown-linux-gnu-libc2.5
+source $HEADAS/headas-init.csh
+/share/scratch2/ahollett/_____/scripts/norms

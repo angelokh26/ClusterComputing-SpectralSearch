@@ -1,0 +1,78 @@
+### Fit fake spectra with the same model and
+### output results to file 'fit_results.dat'
+
+### Parameters:
+set xs_echo_script 0     ;#  make XSPEC not echo the commands that are input
+set nr 1                 ;#  nr   = number of real data
+#set Emin 0.3            ;#  Emin = minimum energy to fit
+#set Emax 10.0           ;#  Emax = maximum energy to fit
+#set model /localscratch/agonzalez/Mrk279/po+xillver+relxill_03-10.xcm
+
+### Initialize xspec
+query no
+#n /opt/commonfiles/programs/optbin/rebin.py source.pha -b specpn_bg_SD.pha -r specpn_sc_SD.rmf -a specpn_sc_SD.arf -m 1
+method leven
+statistic cstat
+chatter 1
+
+### Create a file which will contain the results
+#set fileout [open real_result_STEPPAR.dat w]
+
+### Read in energy file
+#set filein [open "energies.dat" r]
+set file_data [read $filein]
+close $filein
+set energylist [split $file_data "\n"]
+
+#cd /localscratch/agonzalez/${srcname}/301/
+cd $localdir/
+
+### Loop through all data
+for {set i 1} {$i <= $nr} {incr i} {
+
+    ### Read in data
+    #data $specfile
+
+    ### Ignore energies
+    #ign **-$Emin
+    #ign $Emax-**
+
+    #puts "\nIteration: $i"
+
+    @$model
+
+    fit 100 0.1
+    freeze *
+
+    ### Cycle through the line energies given above
+    foreach line $energylist {
+        puts "      Line energy: $line"
+      	set NRG $line
+        #@$model
+      	energies extend low 0.1
+      	energies extend high 100.0
+        #fit 100 0.01
+
+        ### Add in a gauss component
+        addcom $compnum gauss & /*
+        newpar $parone, $NRG, -1, 0.3,0.3, 10,10
+        newpar $partwo, $linewidth, -1, 0.0,0.0, 1,1
+        newpar $parthree, 0.0, 0.01, -1e-4,-1e-4, 1e-4,1e-4
+
+        ### Step through the normalisations
+        steppar best nolog $parthree delta $stepsize $stepnum
+        tclout steppar delstat $parthree 
+        set stepC $xspec_tclout
+
+        ### Put the chi-square and degrees of freedom of each fit into # file
+        puts $fileout "$i $NRG $stepC"
+        delcom $compnum
+    }
+
+    ### Reset everything
+    data none
+    model none
+}
+
+close $fileout
+exit

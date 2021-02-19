@@ -1,0 +1,87 @@
+######################################
+### AUTOMATED XSPEC FITTING SCRIPT ###
+######################################
+query yes
+method leven
+statistic cstat
+chatter 1
+
+### Looping
+#foreach line $SpecList {
+#set NRG $line
+#set inext [expr $line + "10"]
+#set srcfile opt_$line-$inext_src.pha
+#set bkgfile opt_$line-$inext_bkg.pha
+
+### Read in the data
+data 1:1 $srcfile 2:2 $bkgfile
+response 1 $rmffile 2 $rmffile
+arf 1 $arffile 2 none
+response 2:1 $rmffile 2:2 $rmffile
+
+
+### Keep 2-10 (src) keV but ignore 3.5-7.5 (src) keV in source
+ign 1:**-$Emin $Emax-**
+ign 1:$EFemin-$EFemax
+
+### Ignore 0.3-10 keV (obs) in background
+ign 2:**-0.3 10.-**
+
+### Load in model and set NH and z
+model clear
+@$model
+#thaw *
+newpar 2, $NH, -1, 0.01,0.01,1.0,1.0
+newpar 4, $srcz, -1, 0,0,5,5
+show all
+fit 10 0.1
+
+### Get rid of Gaussian lines in bkg model for first fit
+newpar back:7 0, -1,,,,
+newpar back:10 0, -1,,,,
+freeze back:6,9
+fit 10 0.1
+
+### Add in the Gaussian lines in bkg model
+newpar back:7 1e-4, 0.01,,,,
+newpar back:10 1e-4, 0.01,,,,
+thaw back:6,8,9
+fit 10 0.1
+
+### Check the bknpo in background model
+#steppar back:2 0.5 9.5 9
+steppar back:8 8.0 10.0 10
+
+### Freeze background
+freeze back:1-12
+fit 10 0.1
+
+### Output the parameters
+tclout param 3 
+set pogam [lindex $xspec_tclout 0]
+tclout param 5
+set ponorm [lindex $xspec_tclout 0]
+
+tclout stat
+set cstat $xspec_tclout
+tclout dof
+set dof [lindex $xspec_tclout 0]
+
+### Save all outputs to a file
+puts $fileout "$pogam,$ponorm,$cstat,$dof"
+
+### Save the model
+save all po24_${exp}.xcm
+
+### Plot model and residuals
+notice **:0.3-10.
+ign **:**-0.3 10.-**
+cpd /xs
+setpl e
+setpl re 1000 1000 2
+pl ra
+
+#}
+
+### Exit XSPEC
+#exit
